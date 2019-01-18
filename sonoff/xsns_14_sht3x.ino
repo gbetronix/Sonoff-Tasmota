@@ -1,7 +1,7 @@
 /*
   xsns_14_sht3x.ino - SHT3X temperature and humidity sensor support for Sonoff-Tasmota
 
-  Copyright (C) 2018  Theo Arends
+  Copyright (C) 2019  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -24,6 +24,8 @@
  *
  * I2C Address: 0x44, 0x45 or 0x70 (SHTC3)
 \*********************************************************************************************/
+
+#define XSNS_14             14
 
 #define SHT3X_ADDR_GND      0x44       // address pin low (GND)
 #define SHT3X_ADDR_VDD      0x45       // address pin high (VDD)
@@ -74,7 +76,7 @@ bool Sht3xRead(float &t, float &h, uint8_t sht3x_address)
 
 /********************************************************************************************/
 
-void Sht3xDetect()
+void Sht3xDetect(void)
 {
   if (sht3x_count) return;
 
@@ -96,21 +98,33 @@ void Sht3xShow(boolean json)
   if (sht3x_count) {
     float t;
     float h;
-    char temperature[10];
-    char humidity[10];
     char types[11];
     for (byte i = 0; i < sht3x_count; i++) {
       if (Sht3xRead(t, h, sht3x_sensors[i].address)) {
+
+        if (0 == i) { SetGlobalValues(t, h); }
+
+        char temperature[33];
         dtostrfd(t, Settings.flag2.temperature_resolution, temperature);
+        char humidity[33];
         dtostrfd(h, Settings.flag2.humidity_resolution, humidity);
         snprintf_P(types, sizeof(types), PSTR("%s-0x%02X"), sht3x_sensors[i].types, sht3x_sensors[i].address);  // "SHT3X-0xXX"
+
         if (json) {
           snprintf_P(mqtt_data, sizeof(mqtt_data), JSON_SNS_TEMPHUM, mqtt_data, types, temperature, humidity);
 #ifdef USE_DOMOTICZ
-          if (0 == i) {  // We want the same first sensor to report to Domoticz in case a read is missed
+          if ((0 == tele_period) && (0 == i)) {  // We want the same first sensor to report to Domoticz in case a read is missed
             DomoticzTempHumSensor(temperature, humidity);
           }
 #endif  // USE_DOMOTICZ
+
+#ifdef USE_KNX
+        if (0 == tele_period) {
+          KnxSensor(KNX_TEMPERATURE, t);
+          KnxSensor(KNX_HUMIDITY, h);
+        }
+#endif  // USE_KNX
+
 #ifdef USE_WEBSERVER
         } else {
           snprintf_P(mqtt_data, sizeof(mqtt_data), HTTP_SNS_TEMP, mqtt_data, types, temperature, TempUnit());
@@ -125,8 +139,6 @@ void Sht3xShow(boolean json)
 /*********************************************************************************************\
  * Interface
 \*********************************************************************************************/
-
-#define XSNS_14
 
 boolean Xsns14(byte function)
 {

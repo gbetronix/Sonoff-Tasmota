@@ -1,7 +1,7 @@
 /*
   xsns_21_sgp30.ino - SGP30 gas and air quality sensor support for Sonoff-Tasmota
 
-  Copyright (C) 2018  Theo Arends
+  Copyright (C) 2019  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -27,6 +27,8 @@
  * I2C Address: 0x58
 \*********************************************************************************************/
 
+#define XSNS_21             21
+
 #include "Adafruit_SGP30.h"
 Adafruit_SGP30 sgp;
 
@@ -36,7 +38,7 @@ uint8_t sgp30_counter = 0;
 
 /********************************************************************************************/
 
-void Sgp30Update()  // Perform every second to ensure proper operation of the baseline compensation algorithm
+void Sgp30Update(void)  // Perform every second to ensure proper operation of the baseline compensation algorithm
 {
   sgp30_ready = 0;
   if (!sgp30_type) {
@@ -64,20 +66,21 @@ void Sgp30Update()  // Perform every second to ensure proper operation of the ba
   }
 }
 
-const char HTTP_SNS_TVOC[] PROGMEM = "%s{s}SGP30 " D_TVOC "{m}%d " D_UNIT_PARTS_PER_BILLION "{e}";
+const char HTTP_SNS_SGP30[] PROGMEM = "%s"
+  "{s}SGP30 " D_ECO2 "{m}%d " D_UNIT_PARTS_PER_MILLION "{e}"                // {s} = <tr><th>, {m} = </th><td>, {e} = </td></tr>
+  "{s}SGP30 " D_TVOC "{m}%d " D_UNIT_PARTS_PER_BILLION "{e}";
 
 void Sgp30Show(boolean json)
 {
   if (sgp30_ready) {
     if (json) {
-      snprintf_P(mqtt_data, sizeof(mqtt_data), PSTR("%s,\"SGP30\":{\"" D_JSON_CO2 "\":%d,\"" D_JSON_TVOC "\":%d}"), mqtt_data, sgp.eCO2, sgp.TVOC);
+      snprintf_P(mqtt_data, sizeof(mqtt_data), PSTR("%s,\"SGP30\":{\"" D_JSON_ECO2 "\":%d,\"" D_JSON_TVOC "\":%d}"), mqtt_data, sgp.eCO2, sgp.TVOC);
 #ifdef USE_DOMOTICZ
-    DomoticzSensor(DZ_AIRQUALITY, sgp.eCO2);
+      if (0 == tele_period) DomoticzSensor(DZ_AIRQUALITY, sgp.eCO2);
 #endif  // USE_DOMOTICZ
-    } else {
 #ifdef USE_WEBSERVER
-      snprintf_P(mqtt_data, sizeof(mqtt_data), HTTP_SNS_CO2, mqtt_data, "SGP30", sgp.eCO2);
-      snprintf_P(mqtt_data, sizeof(mqtt_data), HTTP_SNS_TVOC, mqtt_data, sgp.TVOC);
+    } else {
+      snprintf_P(mqtt_data, sizeof(mqtt_data), HTTP_SNS_SGP30, mqtt_data, sgp.eCO2, sgp.TVOC);
 #endif
     }
   }
@@ -86,8 +89,6 @@ void Sgp30Show(boolean json)
 /*********************************************************************************************\
  * Interface
 \*********************************************************************************************/
-
-#define XSNS_21
 
 boolean Xsns21(byte function)
 {
